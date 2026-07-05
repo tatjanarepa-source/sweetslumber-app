@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sweet Slumber — Account Action</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>" />
+</head>
+<body>
+
+  <nav>
+    <div class="nav-inner">
+      <div class="nav-logo"><a href="index.html" style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:.45rem"><span>🌙</span> Sweet Slumber</a></div>
+    </div>
+  </nav>
+
+  <div class="auth-wrap">
+    <div class="auth-card" id="auth-card">
+      <div class="auth-icon" id="auth-icon">🌙</div>
+      <h1 id="auth-title">Loading…</h1>
+      <p id="auth-desc"></p>
+      <div id="auth-form"></div>
+      <div class="auth-msg" id="auth-msg"></div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK (compat v9) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBk2fSfgCutrm3_Ac3E62NIkXV9qUXg7J8",
+      authDomain: "sweet-slumber.firebaseapp.com",
+      projectId: "sweet-slumber",
+      storageBucket: "sweet-slumber.firebasestorage.app",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode");
+    const oobCode = params.get("oobCode");
+
+    const title = document.getElementById("auth-title");
+    const desc = document.getElementById("auth-desc");
+    const icon = document.getElementById("auth-icon");
+    const formEl = document.getElementById("auth-form");
+    const msgEl = document.getElementById("auth-msg");
+
+    function showMsg(text, type) {
+      msgEl.textContent = text;
+      msgEl.className = "auth-msg " + type;
+    }
+
+    function showSuccess(heading, body) {
+      icon.textContent = "✅";
+      title.textContent = heading;
+      desc.textContent = body;
+      formEl.innerHTML = '<a class="btn" href="index.html">Back to Sweet Slumber</a>';
+    }
+
+    function showError(heading, body) {
+      icon.textContent = "❌";
+      title.textContent = heading;
+      desc.textContent = body;
+      formEl.innerHTML = '<a class="btn btn-outline" href="index.html">Go to homepage</a>';
+    }
+
+    if (!oobCode || !mode) {
+      showError("Invalid link", "This link is invalid or has expired. Please request a new one from the app.");
+    } else if (mode === "resetPassword") {
+      title.textContent = "Reset your password";
+      desc.textContent = "Choose a new password for your Sweet Slumber account.";
+
+      formEl.innerHTML = `
+        <input class="auth-input" id="new-password" type="password" placeholder="New password" autocomplete="new-password" />
+        <input class="auth-input" id="confirm-password" type="password" placeholder="Confirm new password" autocomplete="new-password" />
+        <button class="btn" id="reset-btn">Set new password</button>
+      `;
+
+      document.getElementById("reset-btn").addEventListener("click", async () => {
+        const pw = document.getElementById("new-password").value;
+        const pw2 = document.getElementById("confirm-password").value;
+
+        if (pw.length < 6) { showMsg("Password must be at least 6 characters.", "error"); return; }
+        if (pw !== pw2) { showMsg("Passwords do not match.", "error"); return; }
+
+        document.getElementById("reset-btn").disabled = true;
+        showMsg("", "");
+
+        try {
+          await auth.confirmPasswordReset(oobCode, pw);
+          showSuccess("Password updated!", "Your password has been changed. You can now sign in to Sweet Slumber with your new password.");
+        } catch (err) {
+          document.getElementById("reset-btn").disabled = false;
+          if (err.code === "auth/expired-action-code") {
+            showError("Link expired", "This password reset link has expired. Please request a new one from the app.");
+          } else if (err.code === "auth/invalid-action-code") {
+            showError("Link already used", "This link has already been used or is invalid. Please request a new reset from the app.");
+          } else {
+            showMsg("Something went wrong. Please try again.", "error");
+          }
+        }
+      });
+
+    } else if (mode === "verifyEmail") {
+      title.textContent = "Verifying your email…";
+      auth.applyActionCode(oobCode)
+        .then(() => showSuccess("Email verified!", "Your email address has been confirmed. You can now use all features of Sweet Slumber."))
+        .catch(() => showError("Verification failed", "This verification link is invalid or has already been used."));
+
+    } else if (mode === "recoverEmail") {
+      title.textContent = "Recovering your email…";
+      auth.applyActionCode(oobCode)
+        .then(() => showSuccess("Email recovered", "Your original email address has been restored. Please sign in again with your original email."))
+        .catch(() => showError("Recovery failed", "This recovery link is invalid or has expired."));
+
+    } else {
+      showError("Unknown action", "This link is not recognised. Please return to the app.");
+    }
+  </script>
+
+</body>
+</html>
